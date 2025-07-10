@@ -1,0 +1,20 @@
+{
+    "files.associations": {
+        "qvboxlayout": "cpp",
+        "qpushbutton": "cpp",
+        "qtextedit": "cpp",
+        "qformlayout": "cpp",
+        "complex": "cpp",
+        "format": "cpp",
+        "qcryptographichash": "cpp",
+        "qstring": "cpp",
+        "string": "cpp",
+        "vector": "cpp",
+        "memory": "cpp",
+        "optional": "cpp",
+        "string_view": "cpp",
+        "system_error": "cpp",
+        "text_encoding": "cpp",
+        "variant": "cpp"
+    }
+}

@@ -1,2 +1,2 @@
 # QTChatClient
-using QT+ASIO 
+using windows+QT+ASIO+json

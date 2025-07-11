@@ -1,7 +1,8 @@
 #include "ClientSocket.h"
 #include <QJsonDocument>
 #include <QMetaObject>
-#include "crypto.h"
+#include <QThread>
+#include "CryptoUtils.h"
 
 // .cpp 构造函数
 ClientSocket::ClientSocket(QObject *parent)
@@ -65,9 +66,18 @@ void ClientSocket::connectToServer(const QString &host, quint16 port, std::funct
 void ClientSocket::loginOrRegister(const QString &mode, const QString &username, const QString &password)
 {
     QJsonObject obj;
+    username_ = username;
     obj["type"] = mode; // login 或 register
     obj["username"] = username;
-    obj["password"] = sha256(password);
+    // obj["password"] = CryptoUtils::sha256(password);
+    obj["password"] = password;
+    sendJson(obj);
+}
+
+void ClientSocket::loginOut(){
+    QJsonObject obj;
+    obj["type"] = "logout";
+    obj["username"] = username_;
     sendJson(obj);
 }
 
@@ -87,63 +97,93 @@ void ClientSocket::sendJson(const QJsonObject &obj)
 
 void ClientSocket::doRead()
 {
-    // 这里改用 asio::async_read_until，自动按换行符分割消息更靠谱
     auto buffer = std::make_shared<asio::streambuf>();
 
     asio::async_read_until(socket_, *buffer, '\n',
-                           [this, buffer](std::error_code ec, std::size_t length)
-                           {
-                               if (!ec)
-                               {
-                                   // 从 buffer 读取一行消息
-                                   std::istream is(buffer.get());
-                                   std::string line;
-                                   std::getline(is, line);
+        [this, buffer](std::error_code ec, std::size_t length)
+        {
+            if (!ec)
+            {
+                std::istream is(buffer.get());
+                std::string line;
+                std::getline(is, line);
 
-                                   QString data = QString::fromStdString(line);
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(line).toUtf8());
 
-                                   // 解析 JSON
-                                   QJsonDocument doc = QJsonDocument::fromJson(data.toUtf8());
-                                   if (doc.isObject())
-                                   {
-                                       auto obj = doc.object();
-                                       QString type = obj["type"].toString();
+                if (doc.isObject())
+                {
+                    handleJsonObject(doc.object());
+                }
 
-                                       if (type == "login_result")
-                                       {
-                                           bool success = obj["success"].toBool();
-                                           if (success)
-                                           {
-                                               QMetaObject::invokeMethod(this, "loginSuccess", Qt::QueuedConnection);
-                                           }
-                                           else
-                                           {
-                                               QString reason = obj["reason"].toString();
-                                               QMetaObject::invokeMethod(this, "loginFailed", Qt::QueuedConnection,
-                                                                         Q_ARG(QString, reason));
-                                           }
-                                       }
-                                       else if (type == "chat")
-                                       {
-                                           QString from = obj["from"].toString();
-                                           QString msg = obj["message"].toString();
-                                           emit messageReceived(QString("%1: %2").arg(from, msg));
-                                       }
-                                   }
-
-                                   // 继续读取下一条消息
-                                   doRead();
-                               }
-                               else
-                               {
-                                   // 连接断开或出错时，可以选择发信号通知 UI
-                                   QMetaObject::invokeMethod(this, "connectionFailed", Qt::QueuedConnection,
-                                                             Q_ARG(QString, QString("Disconnected from server")));
-                               }
-                           });
+                doRead();
+            }
+            else
+            {
+                QMetaObject::invokeMethod(this, "connectionFailed", Qt::QueuedConnection,
+                                          Q_ARG(QString, QString("Disconnected from server")));
+            }
+        });
 }
+
+void ClientSocket::handleJsonObject(const QJsonObject &obj)
+{
+    QString type = obj["type"].toString();
+
+    if (type == "login_result")
+    {
+        bool success = obj["success"].toBool();
+        if (success)
+            QMetaObject::invokeMethod(this, "loginSuccess", Qt::QueuedConnection);
+        else
+            QMetaObject::invokeMethod(this, "loginFailed", Qt::QueuedConnection, Q_ARG(QString, obj["reason"].toString()));
+    }
+    else if (type == "register_result")
+    {
+        bool success = obj["success"].toBool();
+        if (success)
+            QMetaObject::invokeMethod(this, "registerSuccess", Qt::QueuedConnection);
+        else
+            QMetaObject::invokeMethod(this, "registerFailed", Qt::QueuedConnection, Q_ARG(QString, obj["reason"].toString()));
+    }
+    else if (type == "chat")
+    {
+        QString from = obj["from"].toString();
+        QString msg = obj["message"].toString();
+        emit messageReceived(QString("%1: %2").arg(from, msg));
+    }
+    else if (type == "chat_list")
+    {
+        QJsonArray chats = obj["chats"].toArray();
+        emit chatListReceived(chats);
+    }
+    else if (type == "verify_result")
+    {
+        QString target = obj["target"].toString();
+        bool exists = obj["exists"].toBool();
+        emit verifyUserResult(target, exists);
+    }else if(type == "logout_result"){
+        bool success = obj["success"].toBool();
+        QMetaObject::invokeMethod(this, "logoutSuccess", Qt::QueuedConnection);
+    }
+}
+
 
 bool ClientSocket::isConnected() const
 {
     return socket_.is_open();
+}
+
+void ClientSocket::requestChatList()
+{
+    QJsonObject obj;
+    obj["type"] = "get_chat_list";
+    sendJson(obj);
+}
+
+void ClientSocket::verifyTargetExistence(const QString &type, const QString &target)
+{
+    QJsonObject obj;
+    obj["type"] = (type == "group") ? "verify_group" : "verify_user";
+    obj["target"] = target;
+    sendJson(obj);
 }

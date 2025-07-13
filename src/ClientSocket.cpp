@@ -128,7 +128,7 @@ void ClientSocket::doRead()
 void ClientSocket::handleJsonObject(const QJsonObject &obj)
 {
     QString type = obj["type"].toString();
-
+    qDebug()<<"lxy handleJsonObject type: " + type;
     if (type == "login_result")
     {
         bool success = obj["success"].toBool();

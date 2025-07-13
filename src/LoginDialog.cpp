@@ -14,7 +14,7 @@ LoginDialog::LoginDialog(QWidget *parent) : QDialog(parent)
     passwordEdit = new QLineEdit;
     passwordEdit->setEchoMode(QLineEdit::Password);
 
-    hostEdit = new QLineEdit("127.0.0.1");
+    hostEdit = new QLineEdit("117.72.127.189");
     portEdit = new QLineEdit("12345");
     portEdit->setValidator(new QIntValidator(1, 65535, this));
 

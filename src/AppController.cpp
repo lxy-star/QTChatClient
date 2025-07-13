@@ -76,8 +76,8 @@ void AppController::onLoginRequested()
     connect(client, &ClientSocket::registerSuccess, this, &AppController::onRegisterSuccess, Qt::QueuedConnection);
     connect(client, &ClientSocket::registerFailed, this, &AppController::onRegisterFailed, Qt::QueuedConnection);
     connect(client, &ClientSocket::connectionFailed, this, &AppController::onConnectionFailed, Qt::QueuedConnection);
-    connect(client, &ClientSocket::logoutSuccess, this, &AppController::onLoginSuccess, Qt::QueuedConnection);
-    
+    connect(client, &ClientSocket::logoutSuccess, this, &AppController::onLogoutSuccess, Qt::QueuedConnection);
+
     client->connectToServer(host, port, [this, mode, user, pass]()
                             { client->loginOrRegister(mode, user, pass); });
 }
@@ -201,6 +201,7 @@ void AppController::onConnectionFailed(const QString &reason)
 
 void AppController::onLogoutSuccess()
 {
+    qDebug() << "lxy onLogoutSuccess";
     if (mainWidget)
     {
         mainWidget->close();
